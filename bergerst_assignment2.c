@@ -7,13 +7,15 @@ This program reads a CSV file with movie data, processes the data into stucts, c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+// for min and max ints
+#include <limits.h>
 
 struct movie* processMovieFile(char* filePath);
-void askQuestions();
+void askQuestions(struct movie* head);
 void printQuestions();
-void moviesReleased();
-void highestRated();
-void moviesOfLanguages();
+void moviesReleased(struct movie* head);
+void highestRated(struct movie* head);
+void moviesOfLanguages(struct movie* head);
 
 struct movie{
     char* name;
@@ -32,35 +34,15 @@ int main (int argc, char **argv){
         return 1;
     }
     struct movie* head = processMovieFile(argv[1]);
-    
-    // linked list testing
-    // struct movie* current = head;
-    // while (current != NULL) {
-    //     printf("Movie: %s\n", current->name);
-    //     printf("Year: %d\n", current->year);
-    //     printf("Languages: ");
 
-    //     // Print languages
-    //     for (int i = 0; i < 5; i++) {
-    //         if (current->languages[i] != NULL) {
-    //             printf("%s ", current->languages[i]);
-    //         }
-    //     }
-    //     printf("\n");
-
-    //     printf("Rating: %.1f\n", current->rating);
-    //     printf("---------------------\n");
-
-    //     // Move to the next movie in the linked list
-    //     current = current->next;
-    // }
-
-    askQuestions();
+    askQuestions(head);
 
     return 0;
 };
 
-/* basic structure for following function sourced from provided file for assigment (movies.c) */ 
+/* 
+basic structure for reading csv from provided file for assigment (movies.c) 
+*/ 
 struct movie* processMovieFile(char* filePath){
     char *currLine = NULL;
     size_t len = 0;
@@ -102,6 +84,15 @@ struct movie* processMovieFile(char* filePath){
             char* langToken = strtok_r(token, ";", &saveptr2);
             int i = 0;
             while (langToken != NULL) {
+                // remove leading or trailing '[ ]'
+                if (langToken[0] == '[') {
+                    langToken++; 
+                }
+                size_t len = strlen(langToken);
+                if (len > 0 && langToken[len - 1] == ']') {
+                    langToken[len - 1] = '\0';  // Replace ']' with null terminator
+                }
+
                 newMovie->languages[i] = strdup(langToken);
                 i++;
                 langToken = strtok_r(NULL, ";", &saveptr2);
@@ -131,47 +122,114 @@ struct movie* processMovieFile(char* filePath){
     free(currLine);
     // Close the file
     fclose(movieFile);
-    printf("\nProcessed file %s and parsed data for %d movies\n\n", filePath, movies);
+    printf("\nProcessed file %s and parsed data for %d movies\n", filePath, movies);
     return head;
 };
 
-void askQuestions() {
+void askQuestions(struct movie* head) {
     int answer;
     while (answer != 4) {
         if (answer < 1 || answer > 4) {
-            printf("You entered an incorrect choice. Try again.\n\n");
+            printf("You entered an incorrect choice. Try again.\n");
         }
         printQuestions();
         printf("Enter a choice from 1 to 4: ");
         scanf("%d", &answer);
         if (answer == 1) {
-            moviesReleased();
+            moviesReleased(head);
         }
         else if (answer == 2) {
-            highestRated();
+            highestRated(head);
         }
         else if (answer == 3) {
-            moviesOfLanguages();
+            moviesOfLanguages(head);
         }
     }
     return;
 }
 
 void printQuestions() {
-    printf("1. Show movies released in the specified year\n"
+    printf("\n1. Show movies released in the specified year\n"
            "2. Show highest rated movie for each year\n"
            "3. Show the title and year of release of all movies in a specific" "language\n"
            "4. Exit from the program\n\n");
 };
 
-void moviesReleased() {
+void moviesReleased(struct movie* head) {
+    int year;
+    printf("Enter the year for which you want to see movies: ");
+    scanf("%d", &year);
+
+    // bool int for presence of data
+    int present = 0;
+    while (head != NULL) {
+        if (head->year == year) {
+            printf("%s\n", head->name);
+            present = 1;
+        }
+        head = head->next;
+    };
+    if (present == 0) {
+        printf("No data about movies released in the year %d\n", year);
+    };
+};
+
+void highestRated(struct movie* head) {
+
+    int min_year = INT_MAX;
+    int max_year = INT_MIN;
+
+    struct movie* temp = head;
+    while (temp != NULL) {
+        if (temp->year < min_year) min_year = temp->year;
+        if (temp->year > max_year) max_year = temp->year;
+        temp = temp->next;
+    }
+
+    // movie year range
+    int range = max_year - min_year + 1;
+
+    // array to store best movies per year
+    struct movie** best_movies = calloc(range, sizeof(struct moive*));
+
+    while (head != NULL) {
+        // map year to array index
+        int index = head->year - min_year;
+        if (best_movies[index] == NULL || head->rating > best_movies[index]->rating) {
+            best_movies[index] = head;
+        }
+        head = head->next;
+    }
+
+    for (int i = 0; i < range; i++) {
+        if (best_movies[i] != NULL) {
+            printf("%d %.1f %s\n", best_movies[i]->year, best_movies[i]->rating, best_movies[i]->name);
+        }
+    }
+
+    // cleanup
+    free(best_movies); 
 
 };
 
-void highestRated() {
+void moviesOfLanguages(struct movie* head) {
+    char language[20];
+    printf("Enter the language for which you want to see movies: ");
+    scanf("%s", language);
 
-};
-
-void moviesOfLanguages() {
-
+    // bool int for presence of data
+    int present = 0;
+    while (head != NULL) {
+        // search for language in each movie struct
+        for (int i = 0; i < 5 && head->languages[i] != NULL; i++) {
+            if (strcmp(head->languages[i], language) == 0) {
+                printf("%d %s\n", head->year, head->name);
+                present = 1;
+            }
+        };
+        head = head->next;
+    };
+    if (present == 0) {
+        printf("No data about movies released in %s\n", language);
+    };
 };
